@@ -21,4 +21,6 @@ public class Category
     public DateTime CreatedDate { get; set; }
 
     public DateTime LastModifiedDate { get; set; }
+
+    public ICollection<Product> Products { get; set; } = new List<Product>();
 }

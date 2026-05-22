@@ -28,11 +28,21 @@ public class CategoriesController : ControllerBase
     /// <returns>A list of all categories.</returns>
     [HttpGet]
     [ProducesResponseType(typeof(List<CategoryResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetAllCategories()
     {
         _logger.LogInformation("Retrieving all categories.");
-        var categories = await _categoryService.GetAllCategoriesAsync();
-        return Ok(categories);
+
+        try
+        {
+            var categories = await _categoryService.GetAllCategoriesAsync();
+            return Ok(categories);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogError(ex, "Error retrieving categories.");
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = "An error occurred while retrieving categories." });
+        }
     }
 
     /// <summary>
@@ -42,18 +52,34 @@ public class CategoriesController : ControllerBase
     /// <returns>The category details.</returns>
     [HttpGet("{id}")]
     [ProducesResponseType(typeof(CategoryResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetCategoryById([FromRoute] int id)
     {
         _logger.LogInformation("Retrieving category with ID {CategoryId}.", id);
-        var category = await _categoryService.GetCategoryByIdAsync(id);
 
-        if (category == null)
+        try
         {
-            return NotFound();
-        }
+            var category = await _categoryService.GetCategoryByIdAsync(id);
 
-        return Ok(category);
+            if (category == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(category);
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Invalid request while retrieving category with ID {CategoryId}.", id);
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogError(ex, "Server error while retrieving category with ID {CategoryId}.", id);
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = "An error occurred while retrieving the category." });
+        }
     }
 
     /// <summary>
@@ -65,6 +91,7 @@ public class CategoriesController : ControllerBase
     [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(CategoryResponseDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> CreateCategory([FromBody] CreateCategoryDto dto)
     {
         _logger.LogInformation("Creating new category '{CategoryName}'.", dto.Name);
@@ -74,9 +101,15 @@ public class CategoriesController : ControllerBase
             var category = await _categoryService.CreateCategoryAsync(dto);
             return CreatedAtAction(nameof(GetCategoryById), new { id = category.Id }, category);
         }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Invalid request while creating category '{CategoryName}'.", dto.Name);
+            return BadRequest(new { message = ex.Message });
+        }
         catch (InvalidOperationException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            _logger.LogError(ex, "Server error while creating category '{CategoryName}'.", dto.Name);
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = "An error occurred while creating the category." });
         }
     }
 
@@ -91,6 +124,7 @@ public class CategoriesController : ControllerBase
     [ProducesResponseType(typeof(CategoryResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> UpdateCategory([FromRoute] int id, [FromBody] UpdateCategoryDto dto)
     {
         _logger.LogInformation("Updating category with ID {CategoryId}.", id);
@@ -106,9 +140,15 @@ public class CategoriesController : ControllerBase
 
             return Ok(category);
         }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Invalid request while updating category with ID {CategoryId}.", id);
+            return BadRequest(new { message = ex.Message });
+        }
         catch (InvalidOperationException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            _logger.LogError(ex, "Server error while updating category with ID {CategoryId}.", id);
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = "An error occurred while updating the category." });
         }
     }
 
@@ -120,18 +160,34 @@ public class CategoriesController : ControllerBase
     [HttpDelete("{id}")]
     [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> DeleteCategory([FromRoute] int id)
     {
         _logger.LogInformation("Deleting category with ID {CategoryId}.", id);
-        var deleted = await _categoryService.DeleteCategoryAsync(id);
 
-        if (!deleted)
+        try
         {
-            return NotFound();
-        }
+            var deleted = await _categoryService.DeleteCategoryAsync(id);
 
-        return NoContent();
+            if (!deleted)
+            {
+                return NotFound();
+            }
+
+            return NoContent();
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Invalid request while deleting category with ID {CategoryId}.", id);
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogError(ex, "Server error while deleting category with ID {CategoryId}.", id);
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = "An error occurred while deleting the category." });
+        }
     }
 
     /// <summary>
@@ -142,17 +198,33 @@ public class CategoriesController : ControllerBase
     [HttpPost("{id}/toggle-active")]
     [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(CategoryResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> ToggleActive([FromRoute] int id)
     {
         _logger.LogInformation("Toggling active status for category with ID {CategoryId}.", id);
-        var category = await _categoryService.ToggleActiveAsync(id);
 
-        if (category == null)
+        try
         {
-            return NotFound();
-        }
+            var category = await _categoryService.ToggleActiveAsync(id);
 
-        return Ok(category);
+            if (category == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(category);
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Invalid request while toggling category with ID {CategoryId}.", id);
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogError(ex, "Server error while toggling category with ID {CategoryId}.", id);
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = "An error occurred while toggling the category active status." });
+        }
     }
 }
